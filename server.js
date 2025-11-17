@@ -10,6 +10,7 @@ const path = require('path');
 const juegosRouter = require('./routes/juego');
 const resenasRouter = require('./routes/reseña');
 const authRouter = require('./routes/auth');
+const friendsRouter = require('./routes/friends');
 const axios = require('axios');
 
 // --- ¡NUEVO! Importa el nuevo modelo ---
@@ -145,6 +146,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/juegos', juegosRouter);
 app.use('/api/reseñas', resenasRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/friends', friendsRouter);
 
 
 // --- INICIO DEL SERVIDOR ---
