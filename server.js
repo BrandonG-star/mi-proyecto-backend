@@ -8,12 +8,15 @@ const bodyParser = require('body-parser');
 // Importar Routers
 const juegosRouter = require('./routes/juego');
 const resenasRouter = require('./routes/reseña');
+const authRouter = require('./routes/auth');
 const axios = require('axios');
 
 // --- ¡NUEVO! Importa el nuevo modelo ---
 const Activity = require('./models/Activity'); // Asumiendo que lo pusiste en /models/Activity.js
 
 require('dotenv').config();
+const Juego = require('./models/juego');
+const Reseña = require('./models/reseña');
 
 const app = express();
 // Si usas variables de entorno, asegúrate de declararlas después de config()
@@ -75,6 +78,60 @@ app.get('/api/feed', async (req, res) => {
         res.status(500).json({ message: "Error al cargar el feed", error: err.message });
     }
 });
+app.get('/api/stats/dashboard', async (req, res) => {
+    try {
+        // 1. Estadísticas básicas (Total y Completados)
+        // Usamos $group para agrupar todos los juegos en uno solo
+        const basicStats = await Juego.aggregate([
+            {
+                $group: {
+                    _id: null, // Agrupamos todo en un solo documento
+                    totalJuegos: { $sum: 1 },
+                    completados: { 
+                        $sum: { $cond: ["$completado", 1, 0] } // Suma 1 si "completado" es true
+                    }
+                }
+            }
+        ]);
+
+        // 2. Conteo de juegos por Plataforma (para el gráfico de Pie)
+        const plataformaStats = await Juego.aggregate([
+            { $group: { _id: "$plataforma", count: { $sum: 1 } } },
+            { $sort: { count: -1 } } // Opcional: ordena del más jugado al menos
+        ]);
+
+        // 3. Conteo de juegos por Género (para el gráfico de Pie)
+        const generoStats = await Juego.aggregate([
+            { $group: { _id: "$genero", count: { $sum: 1 } } },
+            { $sort: { count: -1 } }
+        ]);
+
+        // 4. Puntuación Media de todas las Reseñas
+        const reseñaStats = await Reseña.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    mediaPuntuacion: { $avg: "$puntuacion" }
+                }
+            }
+        ]);
+
+        // 5. Prepara el objeto de respuesta
+        const stats = {
+            totalJuegos: basicStats[0]?.totalJuegos || 0,
+            completados: basicStats[0]?.completados || 0,
+            plataformas: plataformaStats, // Ej: [{ _id: "PC", count: 5 }, { _id: "PS5", count: 2 }]
+            generos: generoStats,
+            mediaPuntuacion: reseñaStats[0]?.mediaPuntuacion || 0
+        };
+
+        res.json(stats);
+
+    } catch (err) {
+        console.error("Error al generar estadísticas:", err.message);
+        res.status(500).json({ message: "Error al generar estadísticas", error: err.message });
+    }
+});
 
 
 // Middleware
@@ -84,6 +141,7 @@ app.use(bodyParser.json());
 // --- MONTAJE DE RUTAS ---
 app.use('/api/juegos', juegosRouter);
 app.use('/api/reseñas', resenasRouter);
+app.use('/api/auth', authRouter);
 
 
 // --- INICIO DEL SERVIDOR ---
