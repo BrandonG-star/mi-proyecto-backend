@@ -3,6 +3,9 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
 
 // Util: crear token JWT
 function createToken(userId) {
@@ -44,7 +47,7 @@ router.post('/register', async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const nickname = email.split('@')[0];
-    const user = await User.create({ email: email.toLowerCase(), passwordHash, nickname, profilePicUrl: '' });
+    const user = await User.create({ email: email.toLowerCase(), passwordHash, nickname, profilePicUrl: '', phrase: '' });
 
     const token = createToken(user._id);
     res.json({
@@ -54,6 +57,7 @@ router.post('/register', async (req, res) => {
         email: user.email,
         nickname: user.nickname,
         profilePicUrl: user.profilePicUrl,
+        phrase: user.phrase,
       }
     });
   } catch (err) {
@@ -90,6 +94,7 @@ router.post('/login', async (req, res) => {
         email: user.email,
         nickname: user.nickname,
         profilePicUrl: user.profilePicUrl,
+        phrase: user.phrase,
       }
     });
   } catch (err) {
@@ -106,10 +111,11 @@ module.exports = router;
 // --- NUEVO: Actualizar perfil del usuario autenticado ---
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
-    const { profilePicUrl, nickname } = req.body || {};
+    const { profilePicUrl, nickname, phrase } = req.body || {};
     const updates = {};
     if (typeof profilePicUrl === 'string') updates.profilePicUrl = profilePicUrl;
     if (typeof nickname === 'string') updates.nickname = nickname;
+    if (typeof phrase === 'string') updates.phrase = phrase;
 
     const user = await User.findByIdAndUpdate(req.userId, updates, { new: true });
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
@@ -120,10 +126,63 @@ router.put('/profile', authMiddleware, async (req, res) => {
         email: user.email,
         nickname: user.nickname,
         profilePicUrl: user.profilePicUrl,
+        phrase: user.phrase,
       }
     });
   } catch (err) {
     console.error('Error en /auth/profile:', err);
     res.status(500).json({ message: 'Error al actualizar perfil' });
+  }
+});
+
+// --- NUEVO: Subir foto de perfil ---
+const ensureDir = (dirPath) => {
+  try { fs.mkdirSync(dirPath, { recursive: true }); } catch (_) {}
+};
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dest = path.join(__dirname, '..', 'uploads', 'avatars');
+    ensureDir(dest);
+    cb(null, dest);
+  },
+  filename: (req, file, cb) => {
+    const ext = (file.mimetype === 'image/png') ? 'png'
+      : (file.mimetype === 'image/webp') ? 'webp'
+      : 'jpg';
+    cb(null, `${req.userId}-${Date.now()}.${ext}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.mimetype)) {
+      return cb(new Error('Formato de imagen no soportado'));
+    }
+    cb(null, true);
+  }
+});
+
+router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No se recibió archivo' });
+    const relativeUrl = `/uploads/avatars/${req.file.filename}`;
+    const user = await User.findByIdAndUpdate(req.userId, { profilePicUrl: relativeUrl }, { new: true });
+    if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+    res.json({
+      user: {
+        id: user._id,
+        email: user.email,
+        nickname: user.nickname,
+        profilePicUrl: user.profilePicUrl,
+        phrase: user.phrase,
+      }
+    });
+  } catch (err) {
+    console.error('Error en /auth/profile/photo:', err);
+    res.status(500).json({ message: err.message || 'Error al subir foto' });
   }
 });

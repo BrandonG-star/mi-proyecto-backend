@@ -4,6 +4,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const path = require('path');
 
 // Importar Routers
 const juegosRouter = require('./routes/juego');
@@ -137,6 +138,8 @@ app.get('/api/stats/dashboard', async (req, res) => {
 // Middleware
 app.use(cors()); // Permite solicitudes desde el frontend React
 app.use(bodyParser.json());
+// Servir archivos subidos
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- MONTAJE DE RUTAS ---
 app.use('/api/juegos', juegosRouter);

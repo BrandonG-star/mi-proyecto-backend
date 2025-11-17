@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Juego = require('../models/juego');
 const Reseña = require('../models/reseña'); // Necessário para exclusão em cascata
+const Activity = require('../models/Activity');
 
 // POST /api/juegos - Agregar juego
 router.post('/', async (req, res) => {
@@ -9,8 +10,8 @@ router.post('/', async (req, res) => {
         const nuevoJuego = new Juego(req.body);
         await nuevoJuego.save();
         const activity = new Activity({ 
-            text: `¡Se añadió ${newJuego.titulo} a la biblioteca!`, 
-            gameId: newJuego._id 
+            text: `¡Se añadió ${nuevoJuego.titulo} a la biblioteca!`, 
+            gameId: nuevoJuego._id 
         });
         await activity.save();
         res.status(201).json(nuevoJuego);
