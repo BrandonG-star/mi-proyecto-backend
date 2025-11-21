@@ -18,7 +18,7 @@ const Activity = require('./models/Activity'); // Asumiendo que lo pusiste en /m
 
 require('dotenv').config();
 const Juego = require('./models/juego');
-const Reseña = require('./models/Reseña');
+const Reseña = require('./models/reseña');
 
 const app = express();
 // Si usas variables de entorno, asegúrate de declararlas después de config()
